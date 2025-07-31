@@ -1,0 +1,166 @@
+<div class="table-responsive">
+                            <table class="table table-bordered table-striped table-hover">
+                                <thead class="bg-light">
+                                    <tr>
+                                        <th>No</th>
+                                        <th>Ruangan</th>
+                                        <th>Gedung</th>
+                                        <th>Periode Lock</th>
+                                        <th>Alasan</th>
+                                        <th>Dikunci Oleh</th>
+                                        <th>Status</th>
+                                        <th>Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if (count($roomLocks) > 0): ?>
+                                        <?php $i = 1; foreach ($roomLocks as $lock): ?>
+                                            <?php
+                                            // Check current status more accurately
+                                            $today = date('Y-m-d');
+                                            $currentStatus = $lock['status'] ?? 'active'; // Default to active if no status
+                                            $isActive = ($currentStatus === 'active' || $currentStatus === '' || is_null($currentStatus));
+                                            $isNotExpired = ($lock['end_date'] >= $today);
+                                            $canUnlock = ($isActive && $isNotExpired);
+                                            ?>
+                                            <tr>
+                                                <td><?= $i++ ?></td>
+                                                <td>
+                                                    <span class="badge bg-primary"><?= htmlspecialchars($lock['nama_ruang']) ?></span>
+                                                </td>
+                                                <td><?= htmlspecialchars($lock['nama_gedung'] ?? 'Unknown') ?></td>
+                                                <td>
+                                                    <?= formatDate($lock['start_date']) ?> - <?= formatDate($lock['end_date']) ?><br>
+                                                    <small class="text-muted">
+                                                        <?php
+                                                        $start = new DateTime($lock['start_date']);
+                                                        $end = new DateTime($lock['end_date']);
+                                                        $diff = $end->diff($start);
+                                                        echo "({$diff->days} hari)";
+                                                        ?>
+                                                    </small>
+                                                </td>
+                                                <td><?= htmlspecialchars($lock['reason']) ?></td>
+                                                <td>
+                                                    <?= htmlspecialchars($lock['locked_by_email'] ?? 'Unknown') ?><br>
+                                                    <small class="text-muted"><?= date('d/m/Y H:i', strtotime($lock['created_at'])) ?></small>
+                                                </td>
+                                                <td>
+                                                    <?php
+                                                    if ($lock['status'] === 'unlocked') {
+                                                        echo '<span class="badge bg-secondary">Dibuka</span>';
+                                                        if ($lock['unlocked_at']) {
+                                                            echo '<br><small class="text-muted">Dibuka: ' . date('d/m/Y H:i', strtotime($lock['unlocked_at'])) . '</small>';
+                                                        }
+                                                    } elseif ($lock['end_date'] < $today) {
+                                                        echo '<span class="badge bg-info">Expired</span>';
+                                                    } elseif ($lock['start_date'] <= $today && $lock['end_date'] >= $today) {
+                                                        echo '<span class="badge bg-danger">Aktif</span>';
+                                                    } else {
+                                                        echo '<span class="badge bg-warning">Terjadwal</span>';
+                                                    }
+                                                    ?>
+                                                </td>
+                                                <td>
+                                                    <button type="button" class="btn btn-sm btn-info mb-1" 
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#detailModal<?= $lock['id'] ?>">
+                                                        <i class="fas fa-eye"></i> Detail
+                                                    </button>
+                                                    
+                                                    <?php if ($canUnlock): ?>
+                                                        <button type="button" class="btn btn-sm btn-danger mb-1" 
+                                                                onclick="showUnlockModal(<?= $lock['id'] ?>, '<?= htmlspecialchars($lock['nama_ruang'], ENT_QUOTES) ?>', '<?= formatDate($lock['start_date']) ?> - <?= formatDate($lock['end_date']) ?>', '<?= htmlspecialchars($lock['reason'], ENT_QUOTES) ?>')">
+                                                            <i class="fas fa-unlock"></i> Unlock
+                                                        </button>
+                                                    <?php endif; ?>
+                                                    
+                                                    <?php 
+                                                    // Debug info - remove this in production
+                                                    if (false) { // Set to true for debugging
+                                                        echo "<br><small style='font-size:10px;'>Debug: Status={$lock['status']}, Today=$today, End={$lock['end_date']}, CanUnlock=" . ($canUnlock ? 'Yes' : 'No') . "</small>";
+                                                    }
+                                                    ?>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                            </table>
+
+                                            <!-- Detail Modal -->
+                                            <div class="modal fade" id="detailModal<?= $lock['id'] ?>" tabindex="-1">
+                                                <div class="modal-dialog modal-lg">
+                                                    <div class="modal-content">
+                                                        <div class="modal-header bg-info text-white">
+                                                            <h5 class="modal-title">Detail Lock Ruangan #<?= $lock['id'] ?></h5>
+                                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                        </div>
+                                                        <div class="modal-body">
+                                                            <div class="row">
+                                                                <div class="col-md-6">
+                                                                    <h6>Informasi Ruangan</h6>
+                                                                    <table class="table table-borderless table-sm">
+                                                                        <tr><th>Ruangan:</th><td><?= htmlspecialchars($lock['nama_ruang']) ?></td></tr>
+                                                                        <tr><th>Gedung:</th><td><?= htmlspecialchars($lock['nama_gedung'] ?? 'Unknown') ?></td></tr>
+                                                                        <tr><th>Periode:</th><td><?= formatDate($lock['start_date']) ?> - <?= formatDate($lock['end_date']) ?></td></tr>
+                                                                        <tr><th>Durasi:</th><td>
+                                                                            <?php
+                                                                            $start = new DateTime($lock['start_date']);
+                                                                            $end = new DateTime($lock['end_date']);
+                                                                            $diff = $end->diff($start);
+                                                                            echo $diff->days . ' hari';
+                                                                            ?>
+                                                                        </td></tr>
+                                                                    </table>
+                                                                </div>
+                                                                <div class="col-md-6">
+                                                                    <h6>Informasi Lock</h6>
+                                                                    <table class="table table-borderless table-sm">
+                                                                        <tr><th>Alasan:</th><td><?= htmlspecialchars($lock['reason']) ?></td></tr>
+                                                                        <tr><th>Dikunci oleh:</th><td><?= htmlspecialchars($lock['locked_by_email'] ?? 'Unknown') ?></td></tr>
+                                                                        <tr><th>Waktu Lock:</th><td><?= date('d/m/Y H:i', strtotime($lock['created_at'])) ?></td></tr>
+                                                                        <tr><th>Status:</th><td>
+                                                                            <?php
+                                                                            if ($lock['status'] === 'unlocked') {
+                                                                                echo '<span class="badge bg-secondary">Dibuka</span>';
+                                                                            } elseif ($lock['end_date'] < $today) {
+                                                                                echo '<span class="badge bg-info">Expired</span>';
+                                                                            } elseif ($lock['start_date'] <= $today && $lock['end_date'] >= $today) {
+                                                                                echo '<span class="badge bg-danger">Aktif</span>';
+                                                                            } else {
+                                                                                echo '<span class="badge bg-warning">Terjadwal</span>';
+                                                                            }
+                                                                            ?>
+                                                                        </td></tr>
+                                                                    </table>
+                                                                    
+                                                                    <?php if ($lock['status'] === 'unlocked'): ?>
+                                                                        <h6 class="mt-3">Informasi Unlock</h6>
+                                                                        <table class="table table-borderless table-sm">
+                                                                            <tr><th>Dibuka oleh:</th><td><?= htmlspecialchars($lock['unlocked_by_email'] ?? 'Unknown') ?></td></tr>
+                                                                            <tr><th>Waktu Unlock:</th><td><?= $lock['unlocked_at'] ? date('d/m/Y H:i', strtotime($lock['unlocked_at'])) : '-' ?></td></tr>
+                                                                            <tr><th>Alasan Unlock:</th><td><?= htmlspecialchars($lock['unlock_reason'] ?? '-') ?></td></tr>
+                                                                        </table>
+                                                                    <?php endif; ?>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+                                                            <?php if ($canUnlock): ?>
+                                                                <button type="button" class="btn btn-danger" 
+                                                                        onclick="showUnlockModal(<?= $lock['id'] ?>, '<?= htmlspecialchars($lock['nama_ruang'], ENT_QUOTES) ?>', '<?= formatDate($lock['start_date']) ?> - <?= formatDate($lock['end_date']) ?>', '<?= htmlspecialchars($lock['reason'], ENT_QUOTES) ?>')"
+                                                                        data-bs-dismiss="modal">
+                                                                    <i class="fas fa-unlock"></i> Unlock Ruangan
+                                                                </button>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <tr>
+                                            <td colspan="8" class="text-center py-3">Belum ada ruangan yang dikunci.</td>
+                                        </tr>
+                                    <?php endif; ?>
+                        </div>
